@@ -21,12 +21,12 @@ with st.sidebar:
     if auto:
         t_date = datetime.date.today() + datetime.timedelta(days=8)
     else:
-        t_date = st.date_input("Date", datetime.date.today() + datetime.timedelta(days=8))
+        t_date = st.date_input("Date", datetime.date.today() + datetime.timedelta(days=10))
     
-    u_em = st.text_input("Email")
+    u_em = st.text_input("Email", value="kchaudhuri@gmail.com")
     u_pw = st.text_input("Password", type="password")
-    t_s = st.time_input("Start", datetime.time(9, 0))
-    t_e = st.time_input("End", datetime.time(16, 0))
+    t_s = st.time_input("Start", datetime.time(17, 30))
+    t_e = st.time_input("End", datetime.time(18, 30))
 
 st.title("🎾 Tennis Sniper Pro")
 st.metric("Target Date", t_date.strftime("%A, %b %d"))
@@ -34,25 +34,33 @@ st.metric("Target Date", t_date.strftime("%A, %b %d"))
 # 3. ENGINE
 async def run_snipe(d, s, e):
     async with async_playwright() as p:
-        # Cloud-specific launch
         b = await p.chromium.launch(headless=True, args=['--no-sandbox'])
         pg = await b.new_page()
         try:
             st.info("Logging in...")
-            url = "https://www.lifetime.life/login"
-            await pg.goto(url, timeout=60000)
+            # Using the direct login portal URL
+            await pg.goto("https://my.lifetime.life/login", timeout=60000)
             
-            # Short-line inputs to prevent truncation errors
-            await pg.fill('input[name="username"]', u_em)
-            await pg.fill('input[name="password"]', u_pw)
-            await pg.click('button[type="submit"]')
+            # Updated Multi-Selectors for Life Time Login
+            email_sel = 'input[type="email"], input[name="username"], #username'
+            pass_sel = 'input[type="password"], input[name="password"], #password'
+            
+            await pg.wait_for_selector(email_sel, timeout=15000)
+            await pg.fill(email_sel, u_em)
+            await pg.fill(pass_sel, u_pw)
+            await pg.click('button[type="submit"], #loginButton')
+            
             await pg.wait_for_load_state("networkidle")
+            st.success("Login Successful!")
             
-            st.success("Portal Loaded")
+            # This captures what the sniper sees after login
             await pg.screenshot(path="shot.png")
-            st.image("shot.png")
+            st.image("shot.png", caption="Portal Dashboard")
+            
         except Exception as err:
             st.error(f"Error: {err}")
+            await pg.screenshot(path="err.png")
+            st.image("err.png", caption="Error Screenshot")
         finally:
             await b.close()
 
