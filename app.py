@@ -14,7 +14,7 @@ try:
 except:
     st.error("Check Secrets"); st.stop()
 
-# 2. SIDEBAR - ALL FEATURES INTACT
+# 2. SIDEBAR - ALL FEATURES RESTORED
 with st.sidebar:
     st.subheader("📅 Target Settings")
     auto = st.toggle("8-Day Auto (9:00 AM Strike)", value=True)
@@ -22,14 +22,14 @@ with st.sidebar:
     if auto:
         t_date = datetime.date.today() + datetime.timedelta(days=8)
     else:
-        t_date = st.date_input("Select Manual Date", datetime.date.today() + datetime.timedelta(days=8))
+        t_date = st.date_input("Date", datetime.date.today() + datetime.timedelta(days=8))
 
     st.subheader("🔑 Credentials")
     u_em = st.text_input("Email", value="kchaudhuri@gmail.com")
     u_pw = st.text_input("Password", type="password")
     
     st.subheader("⏰ Time Window")
-    t_s = st.time_input("Target Start Time", datetime.time(17, 30))
+    t_s = st.time_input("Start Time", datetime.time(17, 30))
 
 st.title("🎾 Tennis Sniper Pro")
 st.metric("Target Date", t_date.strftime("%A, %b %d"))
@@ -45,11 +45,10 @@ async def run_snipe(d, target_time):
             
             # BANNER BUSTER
             try:
-                banner = pg.locator('button:has-text("Accept All"), #onetrust-accept-btn-handler')
-                await banner.click(timeout=5000)
+                btn = pg.locator('button:has-text("Accept All"), #onetrust-accept-btn-handler')
+                await btn.click(timeout=5000)
                 st.success("Banner Dismissed ✅")
-            except:
-                pass
+            except: pass
 
             # LOGIN SEQUENCE
             await pg.fill('input[type="email"], #username', u_em)
@@ -57,12 +56,12 @@ async def run_snipe(d, target_time):
             await pg.click('button[type="submit"]')
             await pg.wait_for_load_state("networkidle")
             
-            # NAVIGATION
+            # NAVIGATION - SHORT LINES TO PREVENT TRUNCATION
             st.info("Loading Schedule...")
-            base = "https://my.lifetime.life/clubs/ga/north-druid-hills/resource-booking.html"
-            params = f"?sport=Tennis%3A++Indoor+Court&clubId=232&date={d}"
-            extra = "&startTime=-1&duration=60&hideModal=true"
-            grid_url = base + params + extra
+            url_base = "https://my.lifetime.life/clubs/ga/north-druid-hills/"
+            url_file = "resource-booking.html?sport=Tennis%3A++Indoor+Court"
+            url_tail = f"&clubId=232&date={d}&startTime=-1&duration=60&hideModal=true"
+            grid_url = url_base + url_file + url_tail
             
             await pg.goto(grid_url, timeout=60000)
             await pg.wait_for_load_state("networkidle")
@@ -76,4 +75,14 @@ async def run_snipe(d, target_time):
             st.success("Navigation Complete.")
 
         except Exception as err:
-            st.error(f"Error
+            st.error(f"Error: {err}")
+            await pg.screenshot(path="err.png", full_page=True); st.image("err.png")
+        finally:
+            await b.close()
+
+# 4. TRIGGER
+if st.button("🎯 ARM SNIPER"):
+    if not u_em or not u_pw:
+        st.error("Enter credentials")
+    else:
+        asyncio.run(run_snipe(t_date, t_s))
