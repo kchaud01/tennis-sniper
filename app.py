@@ -42,47 +42,46 @@ async def run_snipe(d, slug, target_time):
         try:
             st.info("Clearing banners and logging in...")
             await pg.goto("https://my.lifetime.life/login", timeout=60000)
-            
-            # BANNER BUSTER: Remove the cookie overlay immediately
-            try:
-                await pg.click('button:has-text("Accept All")', timeout=5000)
-                st.write("Cookies Accepted ✅")
+            try: await pg.click('button:has-text("Accept All")', timeout=5000)
             except: pass 
 
-            # LOGIN SEQUENCE
-            e_sel = 'input[type="email"], input[name="username"], #username'
-            p_sel = 'input[type="password"], #password'
-            await pg.wait_for_selector(e_sel, timeout=15000)
-            await pg.fill(e_sel, u_em)
-            await pg.fill(p_sel, u_pw)
+            # LOGIN
+            await pg.fill('input[type="email"], #username', u_em)
+            await pg.fill('input[type="password"], #password', u_pw)
             await pg.click('button[type="submit"]')
             await pg.wait_for_load_state("networkidle")
             
-            # NAVIGATE TO THE EXACT RESOURCE GRID
+            # NAVIGATE
             st.info(f"Navigating to {selected_club} Resource Grid...")
             time_str = target_time.strftime("%I:%M %p").lstrip("0") 
-            # Using your verified URL structure
             grid_url = f"https://my.lifetime.life/clubs/ga/{slug}/resource-booking.html?sport=Tennis%3A++Indoor+Court&clubId=232&date={d}&startTime=-1&duration=60&hideModal=true"
             
             await pg.goto(grid_url, timeout=60000)
             await pg.wait_for_load_state("networkidle")
             
-            # THE STRIKE
+            # THE STRIKE WITH AUTO-SCROLL
             st.warning(f"Searching for {time_str} slot...")
             slot_selector = f'button:has-text("{time_str}")'
             
-            if await pg.query_selector(slot_selector):
-                await pg.click(slot_selector)
-                st.success(f"🎯 Slot {time_str} clicked!")
+            # Wait for the button to exist in the code
+            await pg.wait_for_selector(slot_selector, timeout=10000)
+            
+            # NEW: SCROLL INTO VIEW
+            slot_handle = await pg.query_selector(slot_selector)
+            if slot_handle:
+                await slot_handle.scroll_into_view_if_needed()
+                await asyncio.sleep(1) # Wait for scroll to settle
+                await slot_handle.click()
+                st.success(f"🎯 Slot {time_str} found, scrolled, and clicked!")
             else:
-                st.error(f"Slot {time_str} not visible yet.")
+                st.error(f"Slot {time_str} found in code but couldn't be scrolled into view.")
 
-            await pg.screenshot(path="final_view.png")
-            st.image("final_view.png", caption="Live Portal View")
+            await pg.screenshot(path="final_view.png", full_page=True)
+            st.image("final_view.png", caption="Full Page Sniper View")
             
         except Exception as err:
             st.error(f"Error: {err}")
-            await pg.screenshot(path="err.png"); st.image("err.png")
+            await pg.screenshot(path="err.png", full_page=True); st.image("err.png")
         finally:
             await b.close()
 
