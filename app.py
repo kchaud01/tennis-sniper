@@ -14,7 +14,7 @@ try:
 except:
     st.error("Check Secrets"); st.stop()
 
-# 2. SIDEBAR - ALL FUNCTIONALITY PRESERVED
+# 2. SIDEBAR - ZERO FUNCTIONALITY LOST
 with st.sidebar:
     st.subheader("📅 Target Settings")
     clubs = {"North Druid Hills": "north-druid-hills", "Peachtree Corners": "peachtree-corners"}
@@ -35,39 +35,49 @@ with st.sidebar:
 st.title("🎾 Tennis Sniper Pro")
 st.write(f"Targeting: {sel_club} on {t_date.strftime('%A, %b %d')}")
 
-# 3. ENGINE - USING YOUR INSPECT DATA
+# 3. ENGINE - REINFORCED FOR ONETRUST OVERLAYS
 async def run_snipe(d, c_slug, target_time):
     async with async_playwright() as p:
         b = await p.chromium.launch(headless=True, args=['--no-sandbox'])
         pg = await b.new_page()
         
-        status = st.empty()
+        # Use st.empty to ensure messages are cleared each run
+        msg_area = st.empty()
         try:
-            status.info("Authenticating with Life Time...")
+            msg_area.info("Step 1: Navigating to Login...")
             await pg.goto("https://my.lifetime.life/login", timeout=60000)
             
-            # CLEAR BANNER
+            # MODAL KILLER: Handles the "Confirm My Choices" shield from your error log
+            msg_area.info("Step 2: Clearing OneTrust Barriers...")
+            onetrust_btn = pg.locator('button:has-text("Confirm My Choices"), #onetrust-accept-btn-handler')
             try:
-                await pg.click('button:has-text("Accept All"), #onetrust-accept-btn-handler', timeout=5000)
+                await onetrust_btn.wait_for(state="visible", timeout=7000)
+                await onetrust_btn.click()
+                await asyncio.sleep(1) # Wait for fade-out
             except: pass
 
-            # PRECISION LOGIN: Using id="account-username" from your screenshot
+            # PRECISION LOGIN: Using id="account-username" from your Inspect screenshot
+            msg_area.info("Step 3: Authenticating...")
             await pg.wait_for_selector("#account-username", timeout=15000)
             await pg.fill("#account-username", u_em)
             await pg.fill('input[type="password"]', u_pw)
             await pg.click('button[type="submit"]')
             await pg.wait_for_load_state("networkidle")
             
-            # NAVIGATION
-            status.info(f"Loading {sel_club} Grid for {d}...")
+            # VERIFY LOGIN SUCCESS
+            if "login" in pg.url:
+                raise Exception("Login failed - Check Credentials or Captcha")
+
+            # GRID NAVIGATION
+            msg_area.info("Step 4: Loading Court Grid...")
             time_str = target_time.strftime("%-I:%M %p") 
             url = f"https://my.lifetime.life/clubs/ga/{c_slug}/resource-booking.html"
             query = f"?sport=Tennis%3A++Indoor+Court&clubId=232&date={d}"
             await pg.goto(url + query + "&startTime=-1&duration=60&hideModal=true")
             await pg.wait_for_load_state("networkidle")
             
-            # STRIKE LOGIC: Using Anchor <a> tag from previous diagnostic
-            status.warning(f"Locating {time_str} slot...")
+            # STRIKE LOGIC: Using verified Anchor <a> tag logic
+            msg_area.warning(f"Step 5: Striking {time_str} Slot...")
             await pg.evaluate("window.scrollTo(0, document.body.scrollHeight)")
             await asyncio.sleep(2)
 
@@ -78,17 +88,17 @@ async def run_snipe(d, c_slug, target_time):
             await target_link.wait_for(state="visible", timeout=15000)
             await target_link.click()
             
-            # FINAL CONFIRMATION
-            status.info("Finalizing booking...")
-            conf = pg.locator('button:has-text("Reserve"), button:has-text("Confirm")')
+            # FINAL RESERVATION CONFIRMATION
+            msg_area.info("Step 6: Finalizing Booking...")
+            conf = pg.locator('button:has-text("Reserve"), button:has-text("Confirm")').last
             await conf.wait_for(state="visible", timeout=10000)
             await conf.click()
             
-            status.success(f"✅ BOOKED: {time_str} at {sel_club}!")
+            msg_area.success(f"✅ FINALIZED: {time_str} Booked!")
             await pg.screenshot(path="final.png", full_page=True); st.image("final.png")
 
         except Exception as err:
-            status.error(f"Failed: {err}")
+            msg_area.error(f"Failed at Step: {err}")
             await pg.screenshot(path="err.png", full_page=True); st.image("err.png")
         finally:
             await b.close()
@@ -96,6 +106,6 @@ async def run_snipe(d, c_slug, target_time):
 # 4. TRIGGER
 if st.button("🎯 ARM SNIPER"):
     if not u_em or not u_pw:
-        st.error("Enter credentials first.")
+        st.error("Please enter credentials in the sidebar.")
     else:
         asyncio.run(run_snipe(t_date, slug, t_s))
