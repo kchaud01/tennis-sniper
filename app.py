@@ -62,12 +62,45 @@ async def run_snipe(d, c_slug, target_time):
             await pg.click('button[type="submit"]')
             await pg.wait_for_load_state("networkidle")
             
-            # NAVIGATION - FIXED LINE 66 (SHORTENED TO PREVENT TRUNCATION)
-            st.info(f"Navigating...")
+            # NAVIGATION (FIXED LINE 73: Shortened to prevent truncation)
+            st.info(f"Loading Grid...")
             time_str = target_time.strftime("%-I:%M %p") 
             url = f"https://my.lifetime.life/clubs/ga/{c_slug}/resource-booking.html"
             query = f"?sport=Tennis%3A++Indoor+Court&clubId=232&date={d}"
             await pg.goto(url + query + "&startTime=-1&duration=60&hideModal=true")
             
             # STRIKE LOGIC: Using Anchor <a> tag from your diagnostic
-            st.warning(f"
+            st.warning("Searching for " + time_str + "...")
+            await pg.evaluate("window.scrollTo(0, document.body.scrollHeight)")
+            await asyncio.sleep(2)
+
+            # Targeted Anchor Selector (Corrected based on your HTML inspection)
+            target_link = pg.locator('a[data-testid="resourceBookingTile"]').filter(
+                has=pg.locator(".timeslot-time", has_text=time_str)
+            ).first
+            
+            await target_link.wait_for(state="visible", timeout=15000)
+            await target_link.click()
+            st.success("Target slot clicked!")
+            
+            # FINAL CONFIRMATION
+            confirm_btn = pg.locator('button:has-text("Reserve"), button:has-text("Confirm")')
+            await confirm_btn.wait_for(state="visible", timeout=10000)
+            await confirm_btn.click()
+            st.success("✅ BOOKING COMPLETE!")
+
+            await pg.screenshot(path="final.png", full_page=True)
+            st.image("final.png")
+
+        except Exception as err:
+            st.error(f"Error: {err}")
+            await pg.screenshot(path="err.png", full_page=True); st.image("err.png")
+        finally:
+            await b.close()
+
+# 4. TRIGGER
+if st.button("🎯 ARM SNIPER"):
+    if not u_em or not u_pw:
+        st.error("Enter credentials")
+    else:
+        asyncio.run(run_snipe(t_date, slug, t_s))
