@@ -3,7 +3,7 @@ import asyncio, os, datetime
 from playwright.async_api import async_playwright
 from supabase import create_client
 
-# 1. CLOUD BROWSER SETUP
+# 1. SETUP
 if not os.path.exists("/home/appuser/.cache/ms-playwright"):
     os.system("playwright install chromium --with-deps")
 
@@ -14,19 +14,16 @@ try:
 except:
     st.error("Check Secrets"); st.stop()
 
-# 2. SIDEBAR - ALL FUNCTIONALITY RESTORED & PROTECTED
+# 2. SIDEBAR - ALL FUNCTIONALITY PRESERVED
 with st.sidebar:
     st.subheader("📅 Target Settings")
-    
-    # Club Selection (Preserved)
     clubs = {"North Druid Hills": "north-druid-hills", "Peachtree Corners": "peachtree-corners"}
     sel_club = st.selectbox("Select Club", list(clubs.keys()))
     slug = clubs[sel_club]
     
-    # Duration Selection (Preserved)
-    dur = st.radio("Reservation Duration", [60, 90], index=0, horizontal=True)
+    # Preserved Duration Selection
+    dur = st.radio("Duration", [60, 90], index=0, horizontal=True)
     
-    # 8-Day vs Manual Toggle (Preserved)
     auto = st.toggle("8-Day Auto (9:00 AM Strike)", value=True)
     if auto:
         t_date = datetime.date.today() + datetime.timedelta(days=8)
@@ -36,82 +33,70 @@ with st.sidebar:
     st.subheader("🔑 Credentials")
     u_em = st.text_input("Email", value="kchaudhuri@gmail.com")
     u_pw = st.text_input("Password", type="password")
-    
-    st.subheader("⏰ Time Window")
     t_s = st.time_input("Target Time", datetime.time(16, 0))
 
 st.title("🎾 Tennis Sniper Pro")
-st.write(f"Targeting: {sel_club} ({dur} min) on {t_date.strftime('%A, %b %d')}")
+st.write(f"Targeting: {sel_club} ({dur}m) on {t_date.strftime('%b %d')}")
 
-# 3. ENGINE - REINFORCED FOR DURATION & POPUPS
+# 3. ENGINE - USING VERIFIED FINISH-BTN TEST ID
 async def run_snipe(d, c_slug, target_time, duration):
     async with async_playwright() as p:
         b = await p.chromium.launch(headless=True, args=['--no-sandbox'])
         pg = await b.new_page()
         
-        # We use a status object to keep you informed without stale messages
-        st_msg = st.empty()
+        stt = st.empty()
         try:
-            st_msg.info("Step 1: Logging into Life Time...")
+            stt.info("Logging in...")
             await pg.goto("https://my.lifetime.life/login", timeout=60000)
             
-            # LOGIN - Using precision ID from your Inspect screenshot
+            # LOGIN - Using verified id="account-username"
             await pg.wait_for_selector("#account-username", timeout=15000)
             await pg.fill("#account-username", u_em)
             await pg.fill('input[type="password"]', u_pw)
             await pg.click('button[type="submit"]')
             await pg.wait_for_load_state("networkidle")
             
-            # NAVIGATION (Using the duration choice)
-            st_msg.info(f"Step 2: Loading {duration}m Grid for {sel_club}...")
-            time_str = target_time.strftime("%-I:%M %p") 
+            # NAVIGATION
+            stt.info("Loading Grid...")
+            tm_str = target_time.strftime("%-I:%M %p") 
             url = f"https://my.lifetime.life/clubs/ga/{c_slug}/resource-booking.html"
             query = f"?sport=Tennis%3A++Indoor+Court&clubId=232&date={d}&startTime=-1&duration={duration}&hideModal=true"
             await pg.goto(url + query)
             await pg.wait_for_load_state("networkidle")
             
             # STRIKE LOGIC
-            st_msg.warning(f"Step 3: Striking {time_str} slot...")
+            stt.warning("Locating " + tm_str + "...")
             await pg.evaluate("window.scrollTo(0, document.body.scrollHeight)")
             await asyncio.sleep(2)
 
-            # Targeted Anchor Selector from your diagnostic
-            target_link = pg.locator('a[data-testid="resourceBookingTile"]').filter(
-                has=pg.locator(".timeslot-time", has_text=time_str)
+            target = pg.locator('a[data-testid="resourceBookingTile"]').filter(
+                has=pg.locator(".timeslot-time", has_text=tm_str)
             ).first
             
-            await target_link.wait_for(state="visible", timeout=15000)
-            await target_link.click()
+            await target.wait_for(state="visible", timeout=15000)
+            await target.click()
             
-            # MODAL KILLER (Handles the "Confirm My Choices" and "Accept All" popups)
-            st_msg.info("Step 4: Clearing final popups...")
-            await asyncio.sleep(2)
+            # FINAL STRIKE: Using data-testid="finishBtn" from your Inspect screenshot
+            stt.info("Executing Final Strike...")
+            await asyncio.sleep(2) # Allow modal to render
             
-            popups = ['button:has-text("Accept All")', 'button:has-text("Confirm My Choices")', '#onetrust-accept-btn-handler']
-            for selector in popups:
-                try:
-                    p_btn = pg.locator(selector)
-                    if await p_btn.is_visible():
-                        await p_btn.click()
-                        await asyncio.sleep(1)
-                except: pass
+            # This selector is now surgically precise
+            finish_btn = pg.locator('button[data-testid="finishBtn"]')
+            await finish_btn.wait_for(state="visible", timeout=15000)
             
-            # FINAL CONFIRMATION
-            st_msg.info("Step 5: Finalizing Reservation...")
-            res_btn = pg.locator('button:has-text("Reserve"), button:has-text("Confirm")').last
-            await res_btn.wait_for(state="visible", timeout=10000)
-            await res_btn.click()
+            # Force click to bypass any invisible cookie overlays
+            await finish_btn.click(force=True)
             
-            st_msg.success(f"✅ SUCCESS: {time_str} ({duration}m) Booked!")
+            stt.success("✅ BOOKING COMPLETE!")
             await pg.screenshot(path="final.png", full_page=True); st.image("final.png")
 
         except Exception as err:
-            st_msg.error(f"Failed: {err}")
+            stt.error(f"Error: {err}")
             await pg.screenshot(path="err.png", full_page=True); st.image("err.png")
         finally:
             await b.close()
 
-# 4. TRIGGER - VERIFIED PARENTHESES
+# 4. TRIGGER
 if st.button("🎯 ARM SNIPER"):
     if not u_em or not u_pw:
         st.error("Credentials required.")
