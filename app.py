@@ -1,4 +1,4 @@
-\import streamlit as st
+import streamlit as st
 import asyncio, os, datetime
 from playwright.async_api import async_playwright
 from supabase import create_client
@@ -24,7 +24,6 @@ with st.sidebar:
     # Restored the Calendar/Date Logic
     if auto:
         t_date = datetime.date.today() + datetime.timedelta(days=8)
-        st.info(f"Auto-targeting: {t_date.strftime('%A, %b %d')}")
     else:
         t_date = st.date_input("Select Manual Date", datetime.date.today() + datetime.timedelta(days=8))
 
@@ -47,7 +46,7 @@ async def run_snipe(d, target_time):
             st.info("Attempting to bypass login banner...")
             await pg.goto("https://my.lifetime.life/login", timeout=60000)
             
-            # BANNER BUSTER: Specifically targeting that 'Accept All' overlay from your screenshots
+            # BANNER BUSTER: Specifically targeting that 'Accept All' overlay
             try:
                 banner_button = pg.locator('button:has-text("Accept All"), #onetrust-accept-btn-handler')
                 await banner_button.click(timeout=5000)
@@ -63,27 +62,4 @@ async def run_snipe(d, target_time):
             
             # SCROLLING LOGIC
             st.info("Navigating to Schedule & Scrolling...")
-            # Using the North Druid Hills URL we verified earlier
-            grid_url = f"https://my.lifetime.life/clubs/ga/north-druid-hills/resource-booking.html?sport=Tennis%3A++Indoor+Court&clubId=232&date={d}&startTime=-1&duration=60&hideModal=true"
-            await pg.goto(grid_url, timeout=60000)
-            
-            # Auto-scroll to ensure evening slots render
-            await pg.evaluate("window.scrollTo(0, document.body.scrollHeight)")
-            await asyncio.sleep(2)
-            
-            await pg.screenshot(path="final_view.png", full_page=True)
-            st.image("final_view.png", caption="Full Portal View")
-            st.success("Navigation Complete.")
-
-        except Exception as err:
-            st.error(f"Error: {err}")
-            await pg.screenshot(path="error.png", full_page=True); st.image("error.png")
-        finally:
-            await b.close()
-
-# 4. TRIGGER
-if st.button("🎯 ARM SNIPER"):
-    if not u_em or not u_pw:
-        st.error("Enter credentials")
-    else:
-        asyncio.run(run_snipe(t_date, t_s))
+            grid_url = f"https://my.lifetime.life/clubs/ga/north-druid-hills/resource-booking.html?sport=Tennis%3A++Indoor+Court&clubId=232&date={d
