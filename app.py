@@ -14,14 +14,11 @@ try:
 except:
     st.error("Check Secrets"); st.stop()
 
-# 2. SIDEBAR - RESTORED FUNCTIONALITY
+# 2. SIDEBAR - ALL FEATURES RESTORED
 with st.sidebar:
     st.subheader("📅 Target Settings")
-    
-    # Restored the 8-Day Toggle
     auto = st.toggle("8-Day Auto (9:00 AM Strike)", value=True)
     
-    # Restored the Calendar/Date Logic
     if auto:
         t_date = datetime.date.today() + datetime.timedelta(days=8)
     else:
@@ -43,16 +40,16 @@ async def run_snipe(d, target_time):
         b = await p.chromium.launch(headless=True, args=['--no-sandbox'])
         pg = await b.new_page()
         try:
-            st.info("Attempting to bypass login banner...")
+            st.info("Clearing banner and logging in...")
             await pg.goto("https://my.lifetime.life/login", timeout=60000)
             
-            # BANNER BUSTER: Specifically targeting that 'Accept All' overlay
+            # BANNER BUSTER
             try:
-                banner_button = pg.locator('button:has-text("Accept All"), #onetrust-accept-btn-handler')
-                await banner_button.click(timeout=5000)
-                st.success("Cookie Banner Dismissed ✅")
+                banner = pg.locator('button:has-text("Accept All"), #onetrust-accept-btn-handler')
+                await banner.click(timeout=5000)
+                st.success("Banner Dismissed ✅")
             except:
-                st.write("No banner detected, proceeding...")
+                pass
 
             # LOGIN SEQUENCE
             await pg.fill('input[type="email"], #username', u_em)
@@ -60,6 +57,32 @@ async def run_snipe(d, target_time):
             await pg.click('button[type="submit"]')
             await pg.wait_for_load_state("networkidle")
             
-            # SCROLLING LOGIC
-            st.info("Navigating to Schedule & Scrolling...")
-            grid_url = f"https://my.lifetime.life/clubs/ga/north-druid-hills/resource-booking.html?sport=Tennis%3A++Indoor+Court&clubId=232&date={d
+            # NAVIGATION - BROKEN DOWN TO PREVENT SYNTAX ERRORS
+            st.info("Loading Schedule...")
+            base = "https://my.lifetime.life/clubs/ga/north-druid-hills/resource-booking.html"
+            params = f"?sport=Tennis%3A++Indoor+Court&clubId=232&date={d}"
+            extra = "&startTime=-1&duration=60&hideModal=true"
+            grid_url = base + params + extra
+            
+            await pg.goto(grid_url, timeout=60000)
+            await pg.wait_for_load_state("networkidle")
+            
+            # AUTO-SCROLL
+            await pg.evaluate("window.scrollTo(0, document.body.scrollHeight)")
+            await asyncio.sleep(2)
+            
+            await pg.screenshot(path="final_view.png", full_page=True)
+            st.image("final_view.png", caption="Full Portal View")
+            st.success("Navigation Complete.")
+
+        except Exception as err:
+            st.error(f"Error: {err}")
+            await pg.screenshot(path="error.png", full_page=True); st.image("error.png")
+        finally:
+            await b.close()
+
+# 4. TRIGGER
+if st.button("🎯 ARM SNIPER"):
+    if not u_em or not u_pw:
+        st.error("Enter credentials")
+    else
