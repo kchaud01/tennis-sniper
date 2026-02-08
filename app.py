@@ -49,6 +49,7 @@ async def run_snipe(d, c_slug):
                 btn = pg.locator('button:has-text("Accept All"), #onetrust-accept-btn-handler')
                 await btn.click(timeout=5000)
                 await pg.wait_for_selector('button:has-text("Accept All")', state="hidden")
+                st.success("Banner Dismissed ✅")
             except: pass
 
             # LOGIN
@@ -57,11 +58,11 @@ async def run_snipe(d, c_slug):
             await pg.click('button[type="submit"]')
             await pg.wait_for_load_state("networkidle")
             
-            # NAVIGATION - BROKEN DOWN FOR SAFETY
+            # NAVIGATION
             st.info(f"Loading {sel_club} Grid...")
-            url = f"https://my.lifetime.life/clubs/ga/{c_slug}/resource-booking.html"
+            base = f"https://my.lifetime.life/clubs/ga/{c_slug}/resource-booking.html"
             query = f"?sport=Tennis%3A++Indoor+Court&clubId=232&date={d}"
-            await pg.goto(url + query + "&startTime=-1&duration=60&hideModal=true")
+            await pg.goto(base + query + "&startTime=-1&duration=60&hideModal=true")
             
             # SCROLL TO REVEAL
             await pg.evaluate("window.scrollTo(0, document.body.scrollHeight)")
@@ -73,4 +74,14 @@ async def run_snipe(d, c_slug):
 
         except Exception as err:
             st.error(f"Error: {err}")
-            await pg
+            await pg.screenshot(path="err.png", full_page=True); st.image("err.png")
+        finally:
+            await b.close()
+
+# 4. TRIGGER - PLACED OUTSIDE ALL BLOCKS
+if st.button("🎯 ARM SNIPER"):
+    if not u_em or not u_pw:
+        st.error("Enter credentials")
+    else:
+        st.warning(f"Sniper executing for {t_date} at {t_s}...")
+        asyncio.run(run_snipe(t_date, slug))
