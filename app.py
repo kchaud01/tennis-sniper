@@ -3,7 +3,7 @@ import asyncio, os, datetime
 from playwright.async_api import async_playwright
 from supabase import create_client
 
-# 1. CLOUD BROWSER SETUP
+# 1. SETUP
 if not os.path.exists("/home/appuser/.cache/ms-playwright"):
     os.system("playwright install chromium --with-deps")
 
@@ -44,23 +44,24 @@ async def run_snipe(d, c_slug, target_time):
             st.info("Bypassing banner and logging in...")
             await pg.goto("https://my.lifetime.life/login", timeout=60000)
             
-            # AGGRESSIVE BANNER BUSTER
-            banner_sel = 'button:has-text("Accept All"), #onetrust-accept-btn-handler'
+            # CLEAR BANNER
             try:
-                await pg.wait_for_selector(banner_sel, timeout=10000)
-                await pg.click(banner_sel)
-                # CRITICAL: Wait for the shield to actually disappear
-                await pg.wait_for_selector(banner_sel, state="hidden", timeout=10000)
-                st.success("Banner Destroyed ✅")
-            except:
-                st.write("No banner detected, proceeding...")
+                btn = pg.locator('button:has-text("Accept All"), #onetrust-accept-btn-handler')
+                await btn.click(timeout=5000)
+                await pg.wait_for_selector(btn, state="hidden", timeout=5000)
+            except: pass
 
-            # LOGIN SEQUENCE
+            # MULTI-SELECTOR LOGIN
             st.info("Entering credentials...")
-            await pg.wait_for_selector('#username', timeout=15000)
-            await pg.fill('#username', u_em)
-            await pg.fill('#password', u_pw)
-            await pg.click('button[type="submit"]')
+            # We try multiple common selectors for the email field
+            email_field = pg.locator('input[type="email"], #username, input[name="username"], [placeholder*="Email"]')
+            await email_field.first.wait_for(state="visible", timeout=15000)
+            await email_field.first.fill(u_em)
+            
+            pw_field = pg.locator('input[type="password"], #password, input[name="password"]')
+            await pw_field.first.fill(u_pw)
+            
+            await pg.click('button[type="submit"], button:has-text("Log In")')
             await pg.wait_for_load_state("networkidle")
             
             # NAVIGATION
@@ -70,11 +71,12 @@ async def run_snipe(d, c_slug, target_time):
             query = f"?sport=Tennis%3A++Indoor+Court&clubId=232&date={d}"
             await pg.goto(url + query + "&startTime=-1&duration=60&hideModal=true")
             
-            # STRIKE LOGIC: Using Anchor <a> tag based on your Inspect data
+            # STRIKE LOGIC: Using Anchor <a> tag from your Inspect data
             st.warning("Searching for " + time_str + "...")
             await pg.evaluate("window.scrollTo(0, document.body.scrollHeight)")
             await asyncio.sleep(2)
 
+            # Using the <a> tag and .timeslot-time class you identified
             target_link = pg.locator('a[data-testid="resourceBookingTile"]').filter(
                 has=pg.locator(".timeslot-time", has_text=time_str)
             ).first
@@ -98,7 +100,7 @@ async def run_snipe(d, c_slug, target_time):
         finally:
             await b.close()
 
-# 4. TRIGGER - VERIFIED PARENTHESES
+# 4. TRIGGER
 if st.button("🎯 ARM SNIPER"):
     if not u_em or not u_pw:
         st.error("Enter credentials")
