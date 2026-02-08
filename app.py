@@ -3,7 +3,7 @@ import asyncio, os, datetime
 from playwright.async_api import async_playwright
 from supabase import create_client
 
-# 1. CLOUD BROWSER SETUP
+# 1. SETUP
 if not os.path.exists("/home/appuser/.cache/ms-playwright"):
     os.system("playwright install chromium --with-deps")
 
@@ -18,7 +18,6 @@ except:
 with st.sidebar:
     st.subheader("📅 Target Settings")
     auto = st.toggle("8-Day Auto (9:00 AM Strike)", value=True)
-    
     if auto:
         t_date = datetime.date.today() + datetime.timedelta(days=8)
     else:
@@ -27,52 +26,53 @@ with st.sidebar:
     st.subheader("🔑 Credentials")
     u_em = st.text_input("Email", value="kchaudhuri@gmail.com")
     u_pw = st.text_input("Password", type="password")
-    
-    st.subheader("⏰ Time Window")
     t_s = st.time_input("Start Time", datetime.time(17, 30))
 
 st.title("🎾 Tennis Sniper Pro")
 st.metric("Target Date", t_date.strftime("%A, %b %d"))
 
-# 3. ENGINE - REINFORCED LOGIN & SCROLLING
+# 3. ENGINE - REINFORCED LOGIN
 async def run_snipe(d, target_time):
     async with async_playwright() as p:
         b = await p.chromium.launch(headless=True, args=['--no-sandbox'])
         pg = await b.new_page()
         try:
-            st.info("Clearing banner and logging in...")
+            st.info("Bypassing cookie banner...")
             await pg.goto("https://my.lifetime.life/login", timeout=60000)
             
-            # BANNER BUSTER
+            # AGGRESSIVE BANNER BUSTER
+            banner_sel = 'button:has-text("Accept All"), #onetrust-accept-btn-handler'
             try:
-                btn = pg.locator('button:has-text("Accept All"), #onetrust-accept-btn-handler')
-                await btn.click(timeout=5000)
-                st.success("Banner Dismissed ✅")
-            except: pass
+                await pg.wait_for_selector(banner_sel, timeout=10000)
+                await pg.click(banner_sel)
+                # Wait for the overlay to actually leave the DOM
+                await pg.wait_for_selector(banner_sel, state="hidden", timeout=10000)
+                st.success("Banner Destroyed ✅")
+            except:
+                st.write("No banner found, proceeding...")
 
-            # LOGIN SEQUENCE
-            await pg.fill('input[type="email"], #username', u_em)
-            await pg.fill('input[type="password"], #password', u_pw)
+            # LOGIN SEQUENCE (Now safe from overlays)
+            st.info("Entering credentials...")
+            e_sel, p_sel = 'input[type="email"], #username', 'input[type="password"], #password'
+            await pg.wait_for_selector(e_sel, timeout=15000)
+            await pg.fill(e_sel, u_em)
+            await pg.fill(p_sel, u_pw)
             await pg.click('button[type="submit"]')
             await pg.wait_for_load_state("networkidle")
             
-            # NAVIGATION - SHORT LINES TO PREVENT TRUNCATION
-            st.info("Loading Schedule...")
+            # NAVIGATION & SCROLLING
+            st.info("Navigating to Grid...")
             url_base = "https://my.lifetime.life/clubs/ga/north-druid-hills/"
             url_file = "resource-booking.html?sport=Tennis%3A++Indoor+Court"
             url_tail = f"&clubId=232&date={d}&startTime=-1&duration=60&hideModal=true"
-            grid_url = url_base + url_file + url_tail
+            await pg.goto(url_base + url_file + url_tail, timeout=60000)
             
-            await pg.goto(grid_url, timeout=60000)
-            await pg.wait_for_load_state("networkidle")
-            
-            # AUTO-SCROLL
             await pg.evaluate("window.scrollTo(0, document.body.scrollHeight)")
             await asyncio.sleep(2)
             
-            await pg.screenshot(path="final_view.png", full_page=True)
-            st.image("final_view.png", caption="Full Portal View")
-            st.success("Navigation Complete.")
+            await pg.screenshot(path="view.png", full_page=True)
+            st.image("view.png", caption="Final Portal View")
+            st.success("Target reached.")
 
         except Exception as err:
             st.error(f"Error: {err}")
