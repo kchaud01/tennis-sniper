@@ -14,7 +14,7 @@ try:
 except:
     st.error("Check Secrets"); st.stop()
 
-# 2. SIDEBAR - ALL FEATURES RESTORED
+# 2. SIDEBAR - ALL FEATURES INTACT
 with st.sidebar:
     st.subheader("📅 Target Settings")
     auto = st.toggle("8-Day Auto (9:00 AM Strike)", value=True)
@@ -57,7 +57,7 @@ async def run_snipe(d, target_time):
             await pg.click('button[type="submit"]')
             await pg.wait_for_load_state("networkidle")
             
-            # NAVIGATION - BROKEN DOWN TO PREVENT SYNTAX ERRORS
+            # NAVIGATION
             st.info("Loading Schedule...")
             base = "https://my.lifetime.life/clubs/ga/north-druid-hills/resource-booking.html"
             params = f"?sport=Tennis%3A++Indoor+Court&clubId=232&date={d}"
@@ -76,13 +76,4 @@ async def run_snipe(d, target_time):
             st.success("Navigation Complete.")
 
         except Exception as err:
-            st.error(f"Error: {err}")
-            await pg.screenshot(path="error.png", full_page=True); st.image("error.png")
-        finally:
-            await b.close()
-
-# 4. TRIGGER
-if st.button("🎯 ARM SNIPER"):
-    if not u_em or not u_pw:
-        st.error("Enter credentials")
-    else
+            st.error(f"Error
