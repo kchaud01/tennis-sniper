@@ -62,5 +62,12 @@ async def run_snipe(d, c_slug, target_time):
             await pg.click('button[type="submit"]')
             await pg.wait_for_load_state("networkidle")
             
-            # NAVIGATION
-            st.info(f"Loading
+            # NAVIGATION - FIXED LINE 66 (SHORTENED TO PREVENT TRUNCATION)
+            st.info(f"Navigating...")
+            time_str = target_time.strftime("%-I:%M %p") 
+            url = f"https://my.lifetime.life/clubs/ga/{c_slug}/resource-booking.html"
+            query = f"?sport=Tennis%3A++Indoor+Court&clubId=232&date={d}"
+            await pg.goto(url + query + "&startTime=-1&duration=60&hideModal=true")
+            
+            # STRIKE LOGIC: Using Anchor <a> tag from your diagnostic
+            st.warning(f"
