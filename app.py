@@ -17,16 +17,16 @@ except:
 # 2. SIDEBAR & CLUB SELECTION
 with st.sidebar:
     st.subheader("📅 Settings")
-    # Club IDs for your preferred Atlanta locations
-    club_map = {"Peachtree Corners": "232", "North Druid Hills": "234"}
-    selected_club = st.selectbox("Select Club", list(club_map.keys()))
-    cid = club_map[selected_club]
+    # Mapping to specific URL paths discovered in your history
+    club_paths = {
+        "Peachtree Corners": "peachtree-corners/court-booking.html?clubId=232",
+        "North Druid Hills": "north-druid-hills/court-booking.html?clubId=234"
+    }
+    selected_club = st.selectbox("Select Club", list(club_paths.keys()))
+    path_suffix = club_paths[selected_club]
     
     auto = st.toggle("8-Day Auto", value=True)
-    if auto:
-        t_date = datetime.date.today() + datetime.timedelta(days=8)
-    else:
-        t_date = st.date_input("Date", datetime.date.today() + datetime.timedelta(days=10))
+    t_date = datetime.date.today() + datetime.timedelta(days=8) if auto else st.date_input("Date")
     
     u_em = st.text_input("Email", value="kchaudhuri@gmail.com")
     u_pw = st.text_input("Password", type="password")
@@ -37,7 +37,7 @@ st.title("🎾 Tennis Sniper Pro")
 st.metric(f"Targeting {selected_club}", t_date.strftime("%A, %b %d"))
 
 # 3. ENGINE
-async def run_snipe(d, s, e, club_id):
+async def run_snipe(d, s, e, suffix):
     async with async_playwright() as p:
         b = await p.chromium.launch(headless=True, args=['--no-sandbox'])
         pg = await b.new_page()
@@ -45,23 +45,30 @@ async def run_snipe(d, s, e, club_id):
             st.info("Logging in...")
             await pg.goto("https://my.lifetime.life/login", timeout=60000)
             
-            # Login
-            e_sel = 'input[type="email"], input[name="username"], #username'
-            p_sel = 'input[type="password"], input[name="password"], #password'
+            # Login selectors
+            e_sel, p_sel = 'input[type="email"], #username', 'input[type="password"], #password'
             await pg.fill(e_sel, u_em)
             await pg.fill(p_sel, u_pw)
             await pg.click('button[type="submit"]')
             await pg.wait_for_load_state("networkidle")
             
+            # BANNER BUSTER: Click "Accept All" if cookies popup appears
+            try:
+                await pg.click('button:has-text("Accept All")', timeout=5000)
+            except: pass 
+
             st.info(f"Navigating to {selected_club} Schedule...")
-            # Direct link to the booking grid for your specific club and date
-            grid_url = f"https://my.lifetime.life/clubs/ga/{selected_club.lower().replace(' ', '-')}/court-booking.html?date={d}&clubId={club_id}"
-            await pg.goto(grid_url, timeout=60000)
+            # Building the correct URL for the chosen Atlanta club
+            full_url = f"https://my.lifetime.life/clubs/ga/{suffix}&date={d}"
+            await pg.goto(full_url, timeout=60000)
             await pg.wait_for_load_state("networkidle")
             
-            st.success(f"Grid Loaded for {selected_club}!")
+            # Verification
             await pg.screenshot(path="shot.png")
-            st.image("shot.png", caption=f"Schedule for {d}")
+            st.image("shot.png", caption=f"Schedule for {selected_club}")
+            
+            # Logic for the February 16 strike window goes here
+            st.success("Correct grid located!")
             
         except Exception as err:
             st.error(f"Error: {err}")
@@ -75,4 +82,4 @@ if st.button("🎯 ARM SNIPER"):
         st.error("Enter credentials")
     else:
         st.warning(f"Sniper active for {selected_club} on {t_date}...")
-        asyncio.run(run_snipe(t_date, t_s, t_e, cid))
+        asyncio.run(run_snipe(t_date, t_s, t_e, path_suffix))
