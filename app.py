@@ -14,9 +14,14 @@ try:
 except:
     st.error("Check Secrets"); st.stop()
 
-# 2. SIDEBAR
+# 2. SIDEBAR & CLUB SELECTION
 with st.sidebar:
     st.subheader("📅 Settings")
+    # Club IDs for your preferred Atlanta locations
+    club_map = {"Peachtree Corners": "232", "North Druid Hills": "234"}
+    selected_club = st.selectbox("Select Club", list(club_map.keys()))
+    cid = club_map[selected_club]
+    
     auto = st.toggle("8-Day Auto", value=True)
     if auto:
         t_date = datetime.date.today() + datetime.timedelta(days=8)
@@ -29,38 +34,38 @@ with st.sidebar:
     t_e = st.time_input("End", datetime.time(18, 30))
 
 st.title("🎾 Tennis Sniper Pro")
-st.metric("Target Date", t_date.strftime("%A, %b %d"))
+st.metric(f"Targeting {selected_club}", t_date.strftime("%A, %b %d"))
 
 # 3. ENGINE
-async def run_snipe(d, s, e):
+async def run_snipe(d, s, e, club_id):
     async with async_playwright() as p:
         b = await p.chromium.launch(headless=True, args=['--no-sandbox'])
         pg = await b.new_page()
         try:
             st.info("Logging in...")
-            # Using the direct login portal URL
             await pg.goto("https://my.lifetime.life/login", timeout=60000)
             
-            # Updated Multi-Selectors for Life Time Login
-            email_sel = 'input[type="email"], input[name="username"], #username'
-            pass_sel = 'input[type="password"], input[name="password"], #password'
-            
-            await pg.wait_for_selector(email_sel, timeout=15000)
-            await pg.fill(email_sel, u_em)
-            await pg.fill(pass_sel, u_pw)
-            await pg.click('button[type="submit"], #loginButton')
-            
+            # Login
+            e_sel = 'input[type="email"], input[name="username"], #username'
+            p_sel = 'input[type="password"], input[name="password"], #password'
+            await pg.fill(e_sel, u_em)
+            await pg.fill(p_sel, u_pw)
+            await pg.click('button[type="submit"]')
             await pg.wait_for_load_state("networkidle")
-            st.success("Login Successful!")
             
-            # This captures what the sniper sees after login
+            st.info(f"Navigating to {selected_club} Schedule...")
+            # Direct link to the booking grid for your specific club and date
+            grid_url = f"https://my.lifetime.life/clubs/ga/{selected_club.lower().replace(' ', '-')}/court-booking.html?date={d}&clubId={club_id}"
+            await pg.goto(grid_url, timeout=60000)
+            await pg.wait_for_load_state("networkidle")
+            
+            st.success(f"Grid Loaded for {selected_club}!")
             await pg.screenshot(path="shot.png")
-            st.image("shot.png", caption="Portal Dashboard")
+            st.image("shot.png", caption=f"Schedule for {d}")
             
         except Exception as err:
             st.error(f"Error: {err}")
-            await pg.screenshot(path="err.png")
-            st.image("err.png", caption="Error Screenshot")
+            await pg.screenshot(path="err.png"); st.image("err.png")
         finally:
             await b.close()
 
@@ -69,5 +74,5 @@ if st.button("🎯 ARM SNIPER"):
     if not u_em or not u_pw:
         st.error("Enter credentials")
     else:
-        st.warning(f"Running for {t_date}...")
-        asyncio.run(run_snipe(t_date, t_s, t_e))
+        st.warning(f"Sniper active for {selected_club} on {t_date}...")
+        asyncio.run(run_snipe(t_date, t_s, t_e, cid))
