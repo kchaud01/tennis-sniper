@@ -1,3 +1,9 @@
+import os
+
+# This command installs the necessary browser binaries on the Streamlit server
+if not os.path.exists("/home/appuser/.cache/ms-playwright"):
+    os.system("playwright install chromium")
+
 import streamlit as st
 import time
 from datetime import datetime, timedelta
@@ -140,3 +146,4 @@ else:
         else:
             st.session_state.armed = True
             st.rerun()
+
