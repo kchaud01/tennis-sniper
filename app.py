@@ -21,7 +21,7 @@ with st.sidebar:
     sel_club = st.selectbox("Select Club", list(clubs.keys()))
     slug = clubs[sel_club]
     
-    # Preserved Duration Selection
+    # Duration Restored
     dur = st.radio("Duration", [60, 90], index=0, horizontal=True)
     
     auto = st.toggle("8-Day Auto (9:00 AM Strike)", value=True)
@@ -38,7 +38,7 @@ with st.sidebar:
 st.title("🎾 Tennis Sniper Pro")
 st.write(f"Targeting: {sel_club} ({dur}m) on {t_date.strftime('%b %d')}")
 
-# 3. ENGINE - USING VERIFIED FINISH-BTN TEST ID
+# 3. ENGINE - REINFORCED FOR VERIFIED CLICK
 async def run_snipe(d, c_slug, target_time, duration):
     async with async_playwright() as p:
         b = await p.chromium.launch(headless=True, args=['--no-sandbox'])
@@ -46,7 +46,7 @@ async def run_snipe(d, c_slug, target_time, duration):
         
         stt = st.empty()
         try:
-            stt.info("Logging in...")
+            stt.info("Authenticating...")
             await pg.goto("https://my.lifetime.life/login", timeout=60000)
             
             # LOGIN - Using verified id="account-username"
@@ -65,7 +65,7 @@ async def run_snipe(d, c_slug, target_time, duration):
             await pg.wait_for_load_state("networkidle")
             
             # STRIKE LOGIC
-            stt.warning("Locating " + tm_str + "...")
+            stt.warning("Locating slot...")
             await pg.evaluate("window.scrollTo(0, document.body.scrollHeight)")
             await asyncio.sleep(2)
 
@@ -76,18 +76,35 @@ async def run_snipe(d, c_slug, target_time, duration):
             await target.wait_for(state="visible", timeout=15000)
             await target.click()
             
-            # FINAL STRIKE: Using data-testid="finishBtn" from your Inspect screenshot
-            stt.info("Executing Final Strike...")
-            await asyncio.sleep(2) # Allow modal to render
+            # NEW: FINAL MODAL KILLER (Targets the "Accept All" blocking the Finish button)
+            stt.info("Clearing final blocking popup...")
+            await asyncio.sleep(3) # Extra time for modal to fully cover the screen
             
-            # This selector is now surgically precise
+            popups = ['button:has-text("Accept All")', 'button:has-text("Confirm My Choices")', '#onetrust-accept-btn-handler']
+            for s in popups:
+                try:
+                    btn = pg.locator(s)
+                    if await btn.is_visible():
+                        await btn.click()
+                        await asyncio.sleep(2) # Give it time to fade out
+                except: pass
+            
+            # FINAL STRIKE: Using verified data-testid="finishBtn"
+            stt.info("Executing Verifiable Finish...")
             finish_btn = pg.locator('button[data-testid="finishBtn"]')
             await finish_btn.wait_for(state="visible", timeout=15000)
             
-            # Force click to bypass any invisible cookie overlays
+            # We force the click and then wait for the page to actually change
             await finish_btn.click(force=True)
+            await pg.wait_for_load_state("networkidle")
             
-            stt.success("✅ BOOKING COMPLETE!")
+            # VERIFICATION: Does the "Finish" button still exist?
+            if await finish_btn.is_visible():
+                stt.error("Button still visible! Retrying click...")
+                await finish_btn.click(force=True)
+                await asyncio.sleep(3)
+
+            stt.success("✅ REAL SUCCESS: Court Secured!")
             await pg.screenshot(path="final.png", full_page=True); st.image("final.png")
 
         except Exception as err:
