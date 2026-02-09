@@ -1,106 +1,121 @@
 import streamlit as st
-import asyncio, os, datetime
-from playwright.async_api import async_playwright
-from supabase import create_client
+import time
+from datetime import datetime, timedelta
+from playwright.sync_api import sync_playwright
 
-# 1. SETUP
-if not os.path.exists("/home/appuser/.cache/ms-playwright"):
-    os.system("playwright install chromium --with-deps")
+st.set_page_config(page_title="Tennis Sniper Pro", page_icon="🎾", layout="wide")
 
-st.set_page_config(page_title="Tennis Sniper Pro", page_icon="🎾")
+st.markdown("""
+    <style>
+    .stApp { background-color: #0e1117 !important; }
+    [data-testid="stMetric"] { 
+        background-color: #161b22 !important; 
+        border: 1px solid #30363d !important;
+        padding: 20px; border-radius: 10px;
+    }
+    div.stButton > button { border-radius: 8px; font-weight: bold; height: 3.5em; width: 100%; border: none; }
+    </style>
+    """, unsafe_allow_html=True)
 
-try:
-    sb = create_client(st.secrets["SUPABASE_URL"], st.secrets["SUPABASE_KEY"])
-except:
-    st.error("Check Secrets"); st.stop()
+if 'armed' not in st.session_state:
+    st.session_state.armed = False
 
-# 2. SIDEBAR - ALL FUNCTIONALITY FULLY RESTORED
-with st.sidebar:
-    st.subheader("📅 Target Settings")
-    clubs = {"North Druid Hills": "north-druid-hills", "Peachtree Corners": "peachtree-corners"}
-    sel_club = st.selectbox("Select Club", list(clubs.keys()))
-    slug = clubs[sel_club]
-    
-    # Restored Duration Toggle
-    dur = st.radio("Duration", [60, 90], index=0, horizontal=True)
-    
-    auto = st.toggle("8-Day Auto (9:00 AM Strike)", value=True)
-    if auto:
-        t_date = datetime.date.today() + datetime.timedelta(days=8)
-    else:
-        t_date = st.date_input("Date", datetime.date.today() + datetime.timedelta(days=8))
+def run_sniper(email, password, target_date_obj, earliest_time_str, wait_for_window, target_url, club_name, duration):
+    def get_minutes(t_str):
+        t = datetime.strptime(t_str, "%I:%M %p")
+        return t.hour * 60 + t.minute
 
-    st.subheader("🔑 Credentials")
-    u_em = st.text_input("Email", value="kchaudhuri@gmail.com")
-    u_pw = st.text_input("Password", type="password")
-    t_s = st.time_input("Target Time", datetime.time(16, 0))
+    earliest_minutes = get_minutes(earliest_time_str)
+    target_date_str = target_date_obj.strftime('%Y-%m-%d')
+    window_open_date = target_date_obj - timedelta(days=8)
 
-st.title("🎾 Tennis Sniper Pro")
-st.write(f"Targeting: {sel_club} ({dur}m) on {t_date.strftime('%b %d')}")
+    if wait_for_window:
+        status_text = st.empty()
+        while st.session_state.armed:
+            now = datetime.now()
+            curr_t = now.strftime("%H:%M:%S")
+            days_to_wait = (window_open_date - now.date()).days
+            
+            msg = f"Waiting {days_to_wait} day(s) until window opens on {window_open_date.strftime('%b %d')}" if days_to_wait > 0 else f"Standing by for 9:00 AM Strike on {window_open_date.strftime('%b %d')}"
 
-# 3. ENGINE - HEADFUL MODE FOR MANUAL INTERVENTION
-async def run_snipe(d, c_slug, target_time, duration):
-    async with async_playwright() as p:
-        # HEADLESS=FALSE: This launches the window so you can watch and intervene
-        b = await p.chromium.launch(headless=False, args=['--no-sandbox'])
-        pg = await b.new_page()
+            status_text.markdown(f"""
+                <div style='text-align:center; padding:30px; border:2px solid #238636; border-radius:15px;'>
+                    <p style='color:#8b949e; text-transform:uppercase; letter-spacing:2px;'>{msg}</p>
+                    <h1 style='font-family:monospace; font-size:80px; color:#ffffff;'>{curr_t}</h1>
+                </div>
+            """, unsafe_allow_html=True)
+            
+            if now.date() >= window_open_date and now.hour >= 9:
+                break
+            time.sleep(1)
         
-        stt = st.empty()
+        if not st.session_state.armed:
+            st.warning("Mission Aborted.")
+            return
+
+    final_url = target_url.replace("REPLACE_DATE", target_date_str).replace("REPLACE_DUR", str(duration))
+    
+    with st.status(f"🚀 STRIKING {club_name}...", expanded=True):
         try:
-            stt.info("Authenticating... Watch the popup window!")
-            await pg.goto("https://my.lifetime.life/login", timeout=60000)
-            
-            # LOGIN - Using verified id="account-username"
-            await pg.wait_for_selector("#account-username", timeout=15000)
-            await pg.fill("#account-username", u_em)
-            await pg.fill('input[type="password"]', u_pw)
-            await pg.click('button[type="submit"]')
-            await pg.wait_for_load_state("networkidle")
-            
-            # NAVIGATION
-            stt.info("Navigating the grid...")
-            tm_str = target_time.strftime("%-I:%M %p") 
-            url = f"https://my.lifetime.life/clubs/ga/{c_slug}/resource-booking.html"
-            query = f"?sport=Tennis%3A++Indoor+Court&clubId=232&date={d}&startTime=-1&duration={duration}&hideModal=true"
-            await pg.goto(url + query)
-            await pg.wait_for_load_state("networkidle")
-            
-            # STRIKE LOGIC
-            stt.warning("Locating " + tm_str + " slot...")
-            await pg.evaluate("window.scrollTo(0, document.body.scrollHeight)")
-            await asyncio.sleep(2)
+            with sync_playwright() as p:
+                # HEADLESS must be True for Cloud
+                browser = p.chromium.launch(headless=True, args=['--no-sandbox', '--disable-setuid-sandbox'])
+                page = browser.new_page()
+                
+                def login():
+                    if page.locator('input[type="password"]').is_visible(timeout=8000):
+                        page.locator('input[name="username"], #loginId').first.fill(email)
+                        page.locator('input[type="password"]').first.fill(password)
+                        page.locator('button:visible').filter(has_text="Log In").first.click()
+                        page.wait_for_load_state("networkidle")
 
-            target = pg.locator('a[data-testid="resourceBookingTile"]').filter(
-                has=pg.locator(".timeslot-time", has_text=tm_str)
-            ).first
-            
-            await target.wait_for(state="visible", timeout=15000)
-            await target.click()
-            
-            # MANUAL INTERVENTION POINT
-            stt.error("⚠️ ACTION REQUIRED: Solve the CAPTCHA in the browser window!")
-            
-            # The script will now wait up to 2 minutes for you to check the box
-            # and for the Finish button to become clickable.
-            finish_btn = pg.locator('button[data-testid="finishBtn"]')
-            await finish_btn.wait_for(state="visible", timeout=120000)
-            
-            # Once you solve the captcha, the script attempts the final click
-            await finish_btn.click(force=True)
-            
-            stt.success("✅ REAL SUCCESS: Court Secured!")
-            await pg.screenshot(path="final.png", full_page=True); st.image("final.png")
+                page.goto(final_url, wait_until="networkidle")
+                login()
+                page.wait_for_selector(".timeslot", timeout=30000)
+                page.evaluate("document.querySelectorAll('.modal-backdrop, .ot-sdk-container, #chat-container').forEach(el => el.remove());")
+                
+                slots = page.locator(".timeslot").all()
+                target_node = None
+                for slot in slots:
+                    txt = slot.locator(".timeslot-time").inner_text().upper().strip()
+                    try:
+                        slot_min = get_minutes(txt)
+                        if slot_min >= earliest_minutes and "RESERVED" not in slot.inner_text().upper():
+                            target_node = slot
+                            break
+                    except: continue
 
-        except Exception as err:
-            stt.error(f"Manual Timeout or Error: {err}")
-        finally:
-            # Keep browser open for 10 seconds to confirm booking visually
-            await asyncio.sleep(10)
-            await b.close()
+                if target_node:
+                    target_node.click(force=True)
+                    time.sleep(5)
+                    login()
+                    for _ in range(15):
+                        page.evaluate("() => { const b = Array.from(document.querySelectorAll('button')).find(x => x.innerText.includes('Finish')); if(b) b.click(); }")
+                        if "success" in page.url.lower() or page.locator("text=Confirmed").is_visible(timeout=1000):
+                            st.balloons()
+                            st.success(f"🏆 SECURED: {target_date_str}!")
+                            break
+                        time.sleep(1.0)
+                else: st.error("❌ NO SLOTS FOUND")
+                browser.close()
+        except Exception as e:
+            st.error(f"🚨 CLOUD ERROR: {e}")
+    
+    st.session_state.armed = False
 
-# 4. TRIGGER
-if st.button("🎯 ARM SNIPER"):
-    if not u_em or not u_pw:
-        st.error("Credentials required.")
-    else:
-        asyncio.run(run_snipe(t_date, slug, t_s, dur))
+# --- MAIN UI ---
+st.title("🎾 Tennis Sniper Pro")
+times = [f"{h if h<=12 else h-12}:{m} {'AM' if h<12 else 'PM'}" for h in range(4, 22) for m in ["00", "30"]]
+
+with st.sidebar:
+    st.header("⚙️ MISSION CONFIG")
+    club_choice = st.selectbox("Club", ["Peachtree Corners (Indoor)", "North Druid Hills (Outdoor)"])
+    u_email = st.text_input("Email", value="koushikchaudhuri@gmail.com")
+    u_pw = st.text_input("Password", type="password")
+    u_date = st.date_input("Target Play Date", value=datetime.now() + timedelta(days=8))
+    u_start_t = st.selectbox("Start Time", options=times, index=2)
+    u_dur = st.selectbox("Duration (Min)", options=[60, 90], index=1)
+    wait_window = st.checkbox("Wait for 9:00 AM Window", value=True)
+
+urls = {
+    "Peachtree Corners (Indoor)": "https://
