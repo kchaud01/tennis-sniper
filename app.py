@@ -55,7 +55,6 @@ def run_sniper(email, password, target_date_obj, earliest_time_str, wait_for_win
                 </div>
             """, unsafe_allow_html=True)
             
-            # FIXED: Added the missing colon at the end of the IF statement
             if now.date() >= window_open_date and now.hour >= 9:
                 break
             time.sleep(1)
@@ -119,4 +118,13 @@ times = [f"{h if h<=12 else h-12}:{m} {'AM' if h<12 else 'PM'}" for h in range(4
 
 with st.sidebar:
     st.header("⚙️ MISSION CONFIG")
-    club_choice = st.selectbox("Club
+    club_choice = st.selectbox("Club", ["Peachtree Corners (Indoor)", "North Druid Hills (Outdoor)"])
+    u_email = st.text_input("Email", value="koushikchaudhuri@gmail.com")
+    u_pw = st.text_input("Password", type="password")
+    u_date = st.date_input("Target Play Date", value=datetime.now() + timedelta(days=8))
+    u_start_t = st.selectbox("Start Time", options=times, index=2)
+    u_dur = st.selectbox("Duration (Min)", options=[60, 90], index=1)
+    wait_window = st.checkbox("Wait for 9:00 AM Window", value=True)
+
+# URL logic built to avoid long lines that cause clipping
+pc_base = "
