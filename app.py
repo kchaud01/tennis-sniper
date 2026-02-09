@@ -36,7 +36,7 @@ def run_sniper(email, password, target_date_obj, earliest_time_str, wait_for_win
             curr_t = now.strftime("%H:%M:%S")
             days_to_wait = (window_open_date - now.date()).days
             
-            msg = f"Waiting {days_to_wait} day(s) until window opens on {window_open_date.strftime('%b %d')}" if days_to_wait > 0 else f"Standing by for 9:00 AM Strike on {window_open_date.strftime('%b %d')}"
+            msg = f"Waiting {days_to_wait} day(s) until window opens" if days_to_wait > 0 else "Standing by for 9:00 AM Strike"
 
             status_text.markdown(f"""
                 <div style='text-align:center; padding:30px; border:2px solid #238636; border-radius:15px;'>
@@ -58,8 +58,8 @@ def run_sniper(email, password, target_date_obj, earliest_time_str, wait_for_win
     with st.status(f"🚀 STRIKING {club_name}...", expanded=True):
         try:
             with sync_playwright() as p:
-                # HEADLESS must be True for Cloud
-                browser = p.chromium.launch(headless=True, args=['--no-sandbox', '--disable-setuid-sandbox'])
+                # HEADLESS MUST BE TRUE FOR STREAMLIT CLOUD
+                browser = p.chromium.launch(headless=True, args=['--no-sandbox'])
                 page = browser.new_page()
                 
                 def login():
@@ -117,5 +117,36 @@ with st.sidebar:
     u_dur = st.selectbox("Duration (Min)", options=[60, 90], index=1)
     wait_window = st.checkbox("Wait for 9:00 AM Window", value=True)
 
+# URL Logic wrapped in parentheses to prevent SyntaxErrors
+pc_link = (
+    "https://my.lifetime.life/clubs/ga/peachtree-corners/resource-booking.html?"
+    "sport=Tennis%3A++Indoor+Court&clubId=232&date=REPLACE_DATE&startTime=-1&"
+    "duration=REPLACE_DUR&hideModal=true"
+)
+ndh_link = (
+    "https://my.lifetime.life/clubs/ga/north-druid-hills/resource-booking.html?"
+    "sport=Tennis%3A++Outdoor+Court&clubId=349&date=REPLACE_DATE&startTime=-1&"
+    "duration=REPLACE_DUR&hideModal=true"
+)
+
 urls = {
-    "Peachtree Corners (Indoor)": "https://
+    "Peachtree Corners (Indoor)": pc_link,
+    "North Druid Hills (Outdoor)": ndh_link
+}
+
+c1, c2, c3 = st.columns(3)
+c1.metric("CLUB", "PC Indoor" if "Peachtree" in club_choice else "NDH Outdoor")
+c2.metric("DATE", u_date.strftime("%a, %b %d"))
+c3.metric("STRIKE", (u_date - timedelta(days=8)).strftime("%b %d @ 9AM"))
+
+if st.session_state.armed:
+    if st.button("🛑 ABORT MISSION", type="secondary"):
+        st.session_state.armed = False
+        st.rerun()
+    run_sniper(u_email, u_pw, u_date, u_start_t, wait_window, urls[club_choice], club_choice, u_dur)
+else:
+    if st.button("🔥 INITIATE MISSION", type="primary"):
+        if not u_pw: st.error("CREDENTIALS MISSING")
+        else:
+            st.session_state.armed = True
+            st.rerun()
