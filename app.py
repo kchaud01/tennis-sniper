@@ -1,9 +1,20 @@
 import streamlit as st
 import time
+import subprocess
+import os
 from datetime import datetime, timedelta
 from playwright.sync_api import sync_playwright
 
 st.set_page_config(page_title="Tennis Sniper Pro", page_icon="🎾", layout="wide")
+
+# --- BOOTSTRAP PLAYWRIGHT FOR CLOUD ---
+def install_playwright():
+    # Only run if the browser folder doesn't exist to save time
+    if not os.path.exists("/home/appuser/.cache/ms-playwright"):
+        with st.spinner("Installing Cloud Browsers... this may take a minute."):
+            subprocess.run(["python", "-m", "playwright", "install", "chromium"])
+
+install_playwright()
 
 st.markdown("""
     <style>
@@ -45,108 +56,4 @@ def run_sniper(email, password, target_date_obj, earliest_time_str, wait_for_win
                 </div>
             """, unsafe_allow_html=True)
             
-            if now.date() >= window_open_date and now.hour >= 9:
-                break
-            time.sleep(1)
-        
-        if not st.session_state.armed:
-            st.warning("Mission Aborted.")
-            return
-
-    final_url = target_url.replace("REPLACE_DATE", target_date_str).replace("REPLACE_DUR", str(duration))
-    
-    with st.status(f"🚀 STRIKING {club_name}...", expanded=True):
-        try:
-            with sync_playwright() as p:
-                # HEADLESS MUST BE TRUE FOR STREAMLIT CLOUD
-                browser = p.chromium.launch(headless=True, args=['--no-sandbox'])
-                page = browser.new_page()
-                
-                def login():
-                    if page.locator('input[type="password"]').is_visible(timeout=8000):
-                        page.locator('input[name="username"], #loginId').first.fill(email)
-                        page.locator('input[type="password"]').first.fill(password)
-                        page.locator('button:visible').filter(has_text="Log In").first.click()
-                        page.wait_for_load_state("networkidle")
-
-                page.goto(final_url, wait_until="networkidle")
-                login()
-                page.wait_for_selector(".timeslot", timeout=30000)
-                page.evaluate("document.querySelectorAll('.modal-backdrop, .ot-sdk-container, #chat-container').forEach(el => el.remove());")
-                
-                slots = page.locator(".timeslot").all()
-                target_node = None
-                for slot in slots:
-                    txt = slot.locator(".timeslot-time").inner_text().upper().strip()
-                    try:
-                        slot_min = get_minutes(txt)
-                        if slot_min >= earliest_minutes and "RESERVED" not in slot.inner_text().upper():
-                            target_node = slot
-                            break
-                    except: continue
-
-                if target_node:
-                    target_node.click(force=True)
-                    time.sleep(5)
-                    login()
-                    for _ in range(15):
-                        page.evaluate("() => { const b = Array.from(document.querySelectorAll('button')).find(x => x.innerText.includes('Finish')); if(b) b.click(); }")
-                        if "success" in page.url.lower() or page.locator("text=Confirmed").is_visible(timeout=1000):
-                            st.balloons()
-                            st.success(f"🏆 SECURED: {target_date_str}!")
-                            break
-                        time.sleep(1.0)
-                else: st.error("❌ NO SLOTS FOUND")
-                browser.close()
-        except Exception as e:
-            st.error(f"🚨 CLOUD ERROR: {e}")
-    
-    st.session_state.armed = False
-
-# --- MAIN UI ---
-st.title("🎾 Tennis Sniper Pro")
-times = [f"{h if h<=12 else h-12}:{m} {'AM' if h<12 else 'PM'}" for h in range(4, 22) for m in ["00", "30"]]
-
-with st.sidebar:
-    st.header("⚙️ MISSION CONFIG")
-    club_choice = st.selectbox("Club", ["Peachtree Corners (Indoor)", "North Druid Hills (Outdoor)"])
-    u_email = st.text_input("Email", value="koushikchaudhuri@gmail.com")
-    u_pw = st.text_input("Password", type="password")
-    u_date = st.date_input("Target Play Date", value=datetime.now() + timedelta(days=8))
-    u_start_t = st.selectbox("Start Time", options=times, index=2)
-    u_dur = st.selectbox("Duration (Min)", options=[60, 90], index=1)
-    wait_window = st.checkbox("Wait for 9:00 AM Window", value=True)
-
-# URL Logic wrapped in parentheses to prevent SyntaxErrors
-pc_link = (
-    "https://my.lifetime.life/clubs/ga/peachtree-corners/resource-booking.html?"
-    "sport=Tennis%3A++Indoor+Court&clubId=232&date=REPLACE_DATE&startTime=-1&"
-    "duration=REPLACE_DUR&hideModal=true"
-)
-ndh_link = (
-    "https://my.lifetime.life/clubs/ga/north-druid-hills/resource-booking.html?"
-    "sport=Tennis%3A++Outdoor+Court&clubId=349&date=REPLACE_DATE&startTime=-1&"
-    "duration=REPLACE_DUR&hideModal=true"
-)
-
-urls = {
-    "Peachtree Corners (Indoor)": pc_link,
-    "North Druid Hills (Outdoor)": ndh_link
-}
-
-c1, c2, c3 = st.columns(3)
-c1.metric("CLUB", "PC Indoor" if "Peachtree" in club_choice else "NDH Outdoor")
-c2.metric("DATE", u_date.strftime("%a, %b %d"))
-c3.metric("STRIKE", (u_date - timedelta(days=8)).strftime("%b %d @ 9AM"))
-
-if st.session_state.armed:
-    if st.button("🛑 ABORT MISSION", type="secondary"):
-        st.session_state.armed = False
-        st.rerun()
-    run_sniper(u_email, u_pw, u_date, u_start_t, wait_window, urls[club_choice], club_choice, u_dur)
-else:
-    if st.button("🔥 INITIATE MISSION", type="primary"):
-        if not u_pw: st.error("CREDENTIALS MISSING")
-        else:
-            st.session_state.armed = True
-            st.rerun()
+            if now.date() >= window_open_date and now.hour >= 9
