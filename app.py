@@ -9,7 +9,6 @@ st.set_page_config(page_title="Tennis Sniper Pro", page_icon="🎾", layout="wid
 
 # --- BOOTSTRAP PLAYWRIGHT FOR CLOUD ---
 def install_playwright():
-    # Only run if the browser folder doesn't exist to save time
     if not os.path.exists("/home/appuser/.cache/ms-playwright"):
         with st.spinner("Installing Cloud Browsers... this may take a minute."):
             subprocess.run(["python", "-m", "playwright", "install", "chromium"])
@@ -56,4 +55,68 @@ def run_sniper(email, password, target_date_obj, earliest_time_str, wait_for_win
                 </div>
             """, unsafe_allow_html=True)
             
-            if now.date() >= window_open_date and now.hour >= 9
+            # FIXED: Added the missing colon at the end of the IF statement
+            if now.date() >= window_open_date and now.hour >= 9:
+                break
+            time.sleep(1)
+        
+        if not st.session_state.armed:
+            st.warning("Mission Aborted.")
+            return
+
+    final_url = target_url.replace("REPLACE_DATE", target_date_str).replace("REPLACE_DUR", str(duration))
+    
+    with st.status(f"🚀 STRIKING {club_name}...", expanded=True):
+        try:
+            with sync_playwright() as p:
+                browser = p.chromium.launch(headless=True, args=['--no-sandbox'])
+                page = browser.new_page()
+                
+                def login():
+                    if page.locator('input[type="password"]').is_visible(timeout=10000):
+                        page.locator('input[name="username"], #loginId').first.fill(email)
+                        page.locator('input[type="password"]').first.fill(password)
+                        page.locator('button:visible').filter(has_text="Log In").first.click()
+                        page.wait_for_load_state("networkidle")
+
+                page.goto(final_url, wait_until="networkidle")
+                login()
+                page.wait_for_selector(".timeslot", timeout=30000)
+                page.evaluate("document.querySelectorAll('.modal-backdrop, .ot-sdk-container, #chat-container').forEach(el => el.remove());")
+                
+                slots = page.locator(".timeslot").all()
+                target_node = None
+                for slot in slots:
+                    txt = slot.locator(".timeslot-time").inner_text().upper().strip()
+                    try:
+                        slot_min = get_minutes(txt)
+                        if slot_min >= earliest_minutes and "RESERVED" not in slot.inner_text().upper():
+                            target_node = slot
+                            break
+                    except: continue
+
+                if target_node:
+                    target_node.click(force=True)
+                    time.sleep(5)
+                    login()
+                    for _ in range(15):
+                        page.evaluate("() => { const b = Array.from(document.querySelectorAll('button')).find(x => x.innerText.includes('Finish')); if(b) b.click(); }")
+                        if "success" in page.url.lower() or page.locator("text=Confirmed").is_visible(timeout=1500):
+                            st.balloons()
+                            st.success(f"🏆 SECURED: {target_date_str}!")
+                            break
+                        time.sleep(1.0)
+                else: st.error("❌ NO SLOTS FOUND")
+                browser.close()
+        except Exception as e:
+            st.error(f"🚨 CLOUD ERROR: {e}")
+    
+    st.session_state.armed = False
+
+# --- MAIN UI ---
+st.title("🎾 Tennis Sniper Pro")
+times = [f"{h if h<=12 else h-12}:{m} {'AM' if h<12 else 'PM'}" for h in range(4, 22) for m in ["00", "30"]]
+
+with st.sidebar:
+    st.header("⚙️ MISSION CONFIG")
+    club_choice = st.selectbox("Club
