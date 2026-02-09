@@ -5,7 +5,6 @@ import time
 from datetime import datetime, timedelta
 
 # --- AUTOMATIC BROWSER INSTALLER ---
-# This must run BEFORE importing sync_playwright to avoid path errors
 def force_playwright_install():
     if not os.path.exists("/home/appuser/.cache/ms-playwright"):
         with st.spinner("Installing Chromium for Streamlit Cloud..."):
@@ -16,7 +15,6 @@ def force_playwright_install():
 
 force_playwright_install()
 
-# Now we can safely import Playwright
 from playwright.sync_api import sync_playwright
 
 st.set_page_config(page_title="Tennis Sniper Pro", page_icon="🎾", layout="wide")
@@ -50,4 +48,12 @@ def run_sniper(email, password, target_date_obj, earliest_time_str, wait_for_win
         while st.session_state.armed:
             now = datetime.now()
             curr_t = now.strftime("%H:%M:%S")
-            days_to_wait = (window_open_date - now.date()).
+            diff = window_open_date - now.date()
+            days_to_wait = diff.days
+            
+            msg = f"Waiting {days_to_wait} days" if days_to_wait > 0 else "Standing by for 9AM"
+            status_text.markdown(f"<h1 style='text-align:center;color:#238636;'>{curr_t}</h1><p style='text-align:center;'>{msg}</p>", unsafe_allow_html=True)
+            
+            if now.date() >= window_open_date and now.hour >= 9:
+                break
+            time.sleep(1)
