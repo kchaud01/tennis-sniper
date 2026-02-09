@@ -4,21 +4,28 @@ import subprocess
 import time
 from datetime import datetime, timedelta
 
-# --- AUTOMATIC BROWSER INSTALLER ---
-def force_playwright_install():
+# --- CLOUD-SPECIFIC INSTALLER ---
+def install_playwright():
+    # Attempt to install only the necessary headless shell
     if not os.path.exists("/home/appuser/.cache/ms-playwright"):
-        with st.spinner("Installing Chromium for Streamlit Cloud..."):
-            try:
-                subprocess.run(["python", "-m", "playwright", "install", "chromium"], check=True)
-            except Exception as e:
-                st.error(f"Installation failed: {e}")
+        try:
+            # Using --with-deps to ensure Linux libraries are present
+            subprocess.run(["python", "-m", "playwright", "install", "chromium", "--with-deps"], check=True)
+        except Exception as e:
+            st.error(f"Browser Setup Error: {e}. Ensure packages.txt is present in your GitHub.")
 
-force_playwright_install()
+# Run the installer
+install_playwright()
 
-from playwright.sync_api import sync_playwright
+# Import after installation attempt
+try:
+    from playwright.sync_api import sync_playwright
+except ImportError:
+    st.error("Dependency Error: playwright not found in requirements.txt")
 
 st.set_page_config(page_title="Tennis Sniper Pro", page_icon="🎾", layout="wide")
 
+# --- THEME & UI ---
 st.markdown("""
     <style>
     .stApp { background-color: #0e1117 !important; }
@@ -51,9 +58,4 @@ def run_sniper(email, password, target_date_obj, earliest_time_str, wait_for_win
             diff = window_open_date - now.date()
             days_to_wait = diff.days
             
-            msg = f"Waiting {days_to_wait} days" if days_to_wait > 0 else "Standing by for 9AM"
-            status_text.markdown(f"<h1 style='text-align:center;color:#238636;'>{curr_t}</h1><p style='text-align:center;'>{msg}</p>", unsafe_allow_html=True)
-            
-            if now.date() >= window_open_date and now.hour >= 9:
-                break
-            time.sleep(1)
+            msg = f"Waiting {days_to_wait}
